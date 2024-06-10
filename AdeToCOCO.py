@@ -49,7 +49,7 @@ class AdeToCOCO():
         Args:
             pklPath (str): path to the ADE20K index pickle file
             datasetDir (str): path to the ADE20K dataset directory
-            objectNames (list): list of object names to convert
+            objectNames (list | None): list of object names to convert (optional)
         """
         self.statics = pickleload(pklPath)
         self.datasetDir = datasetDir
@@ -128,7 +128,7 @@ class AdeToCOCO():
 
         for obj in objects:
 
-            if obj["name"] not in objectNames:
+            if self.objectNames is not None and obj["name"] not in self.objectNames:
                 continue
 
             annotation = {
@@ -160,7 +160,7 @@ class AdeToCOCO():
             # get rle (Run-Length Encoding)
             # rle = mask_util.encode(np.array(mask[:, :, None], order="F", dtype="uint8"))[0]
             h, w = imageInfo["imsize"][0], imageInfo["imsize"][1]
-            poly = [annotation["segmentation"]]
+            poly = np.array([annotation["segmentation"]], dtype=np.double)
             rle = mask_util.frPyObjects(poly, h, w)[0]
 
             rle["counts"] = rle["counts"].decode("utf-8")
@@ -193,7 +193,9 @@ class AdeToCOCO():
     def convert(self):
         # Convert Category
         adeCategories = []
-        for name in self.objectNames:
+        _object_names = self.objectNames or self.statics["objectnames"]
+        
+        for name in _object_names:
             print(f"Convert {name}")
             categoryDict = {"id": int, "name": str}
             id = self.getObjectIdbyName(
@@ -214,7 +216,7 @@ class AdeToCOCO():
         valAnnotations = []
         decodeFailCount = 0
 
-        for imgId in tqdm(self.getImageIds(objectNames)):
+        for imgId in tqdm(self.getImageIds(_object_names)):
             jsonFile = self.getInfoJsonbyId(imgId)
 
             # TODO: handle decode fail
@@ -298,7 +300,7 @@ if __name__ == "__main__":
     parser.add_argument("--objectNames",
                         type=str,
                         nargs='+',
-                        required=True,
+                        required=False,
                         help="List of object names to convert")
     parser.add_argument("--demo",
                         type=bool,
@@ -310,7 +312,8 @@ if __name__ == "__main__":
     datasetDir = args.datasetDir
     objectNames = args.objectNames
     pklPath = args.pklPath
-    print(f"Convert {objectNames} in {datasetDir}")
+    
+    print(f"Convert {objectNames or 'all categories'} in {datasetDir}")
     converter = AdeToCOCO(pklPath, datasetDir, objectNames)
     print("Start Converting.....")
     converter.convert()
